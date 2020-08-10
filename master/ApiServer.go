@@ -63,14 +63,14 @@ ERR:
 // POST /job/delete name=job1
 func handleJobDelete(resp http.ResponseWriter, req *http.Request) {
 	var (
-		err error
+		err     error
 		jobName string
-		oldJob *common.Job
-		bytes []byte
+		oldJob  *common.Job
+		bytes   []byte
 	)
 
 	if err = req.ParseForm(); err != nil {
-		goto ERR	
+		goto ERR
 	}
 
 	// 删除的任务名
@@ -98,9 +98,9 @@ ERR:
 // 列举所有crontab任务
 func handleJobList(resp http.ResponseWriter, req *http.Request) {
 	var (
-		err error
+		err     error
 		jobList []*common.Job
-		bytes []byte
+		bytes   []byte
 	)
 
 	if jobList, err = G_jobMgr.ListJob(); err != nil {
@@ -124,9 +124,9 @@ ERR:
 // 强制杀死某个任务
 func handleJobKill(resp http.ResponseWriter, req *http.Request) {
 	var (
-		err error
+		err     error
 		jobName string
-		bytes []byte
+		bytes   []byte
 	)
 
 	// 解析POST表单
@@ -158,9 +158,11 @@ ERR:
 // InitApiServer 初始化服务
 func InitApiServer() (err error) {
 	var (
-		mux        *http.ServeMux
-		listener   net.Listener
-		httpServer *http.Server
+		mux           *http.ServeMux
+		listener      net.Listener
+		httpServer    *http.Server
+		staticDir     http.Dir
+		staticHandler http.Handler
 	)
 
 	// 配置路由
@@ -169,6 +171,11 @@ func InitApiServer() (err error) {
 	mux.HandleFunc("/job/delete", handleJobDelete)
 	mux.HandleFunc("/job/job-list", handleJobList)
 	mux.HandleFunc("/job/kill", handleJobKill)
+
+	// 静态文件目录
+	staticDir = http.Dir(G_config.Webroot)
+	staticHandler = http.FileServer(staticDir)
+	mux.Handle("/", staticHandler)
 
 	// 启动TCP监听
 	if listener, err = net.Listen("tcp", ":"+strconv.Itoa(G_config.ApiPort)); err != nil {
