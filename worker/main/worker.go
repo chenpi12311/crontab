@@ -55,10 +55,6 @@ func main() {
 		goto ERR
 	}
 
-	if err = worker.G_jobMgr.WatchJobs(); err != nil {
-		goto ERR
-	}
-
 	fmt.Println("启动成功")
 	for {
 		time.Sleep(1 * time.Second)

@@ -1,12 +1,12 @@
 package worker
 
 import (
+	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/mvcc/mvccpb"
 	"context"
 	"github.com/chenpi12311/crontab/common"
 	"time"
 
-	"go.etcd.io/etcd/clientv3"
 )
 
 // JobMgr 任务管理器
@@ -123,5 +123,13 @@ func InitJobMgr() (err error) {
 		watcher: watcher,
 	}
 
+	G_jobMgr.WatchJobs()
+
+	return
+}
+
+// CreateJobLock 创建分布式锁
+func (jobMgr *JobMgr) CreateJobLock(jobName string) (jobLock *JobLock) {
+	jobLock = InitJobLock(jobName, jobMgr.kv, jobMgr.lease)
 	return
 }

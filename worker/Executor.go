@@ -27,6 +27,7 @@ func (executor *Executor) ExecuteJob(info *common.JobExecuteInfo) {
 			result *common.JobExecuteResult
 			startTime time.Time
 			endTime time.Time
+			jobLock *JobLock
 		)
 
 		result = &common.JobExecuteResult{
@@ -34,21 +35,33 @@ func (executor *Executor) ExecuteJob(info *common.JobExecuteInfo) {
 			Output: make([]byte, 0),
 		}
 
-		// 执行shell命令
-		cmd = exec.CommandContext(context.TODO(), "/bin/bash", "-c", info.Job.Command)
+		// 初始化分布式锁
+		jobLock = G_jobMgr.CreateJobLock(info.Job.Name)
 
-		startTime = time.Now()
+		// 抢锁
+		err = jobLock.TryLock()
+		defer jobLock.UnLock()
 
-		// 执行并捕获输出
-		output, err = cmd.CombinedOutput()
+		if err != nil { // 上锁失败
+			result.Err = err
+			result.EndTime = time.Now()
+		} else {
+			// 执行shell命令
+			cmd = exec.CommandContext(context.TODO(), "/bin/bash", "-c", info.Job.Command)
 
-		endTime = time.Now()
+			startTime = time.Now()
 
-		// 更新任务执行结果
-		result.Output = output
-		result.StartTime = startTime
-		result.EndTime = endTime
-		result.Err = err
+			// 执行并捕获输出
+			output, err = cmd.CombinedOutput()
+
+			endTime = time.Now()
+
+			// 更新任务执行结果
+			result.Output = output
+			result.StartTime = startTime
+			result.EndTime = endTime
+			result.Err = err
+		}
 
 		// 任务执行完成后 把执行的结果返回给Scheduler Scheduler会从executingTable中删掉执行记录
 		G_scheduler.PushJobResult(result)
