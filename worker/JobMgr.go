@@ -1,7 +1,6 @@
 package worker
 
 import (
-	"fmt"
 	"github.com/coreos/etcd/mvcc/mvccpb"
 	"context"
 	"github.com/chenpi12311/crontab/common"
@@ -46,7 +45,12 @@ func (j *JobMgr) WatchJobs() (err error) {
 	for _, kvPair = range getResp.Kvs {
 		// 反序列化json得到JOB
 		if job, err = common.UnpackJob(kvPair.Value); err == nil {
-			// TODO: 把这个job同步给scheduler(调度协程)
+			// 把这个job同步给scheduler(调度协程)
+			jobEvent = &common.JobEvent{
+				EventType: common.JOB_EVENT_SAVE,
+				Job: job,
+			}
+			G_scheduler.PushJobEvent(jobEvent)
 		}
 	}
 
@@ -76,8 +80,8 @@ func (j *JobMgr) WatchJobs() (err error) {
 					// 构建一个删除Event
 					jobEvent = common.BuildJobEvent(common.JOB_EVENT_DEL, job)
 				}
-				// TODO: 推送事件给scheduler -> G_scheduler.PushJobEvent(jobEvent)
-				fmt.Println(jobEvent)
+				// 推送事件给scheduler -> G_scheduler.PushJobEvent(jobEvent)
+				G_scheduler.PushJobEvent(jobEvent)
 			}
 		}
 	}()

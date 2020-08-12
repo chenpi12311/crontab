@@ -41,6 +41,11 @@ func main() {
 		goto ERR
 	}
 
+	// 加载Scheduler
+	if err = worker.InitScheduler(); err != nil {
+		goto ERR
+	}
+
 	// 加载JobManager
 	if err = worker.InitJobMgr(); err != nil {
 		goto ERR

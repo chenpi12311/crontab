@@ -79,3 +79,24 @@ func ExtractJobName(jobKey string) (name string) {
 func BuildJobEvent(eventType int, job *Job) (*JobEvent) {
 	return &JobEvent{EventType: eventType, Job: job}
 }
+
+// BuildJobSchedulerPlan 构造任务执行计划
+func BuildJobSchedulerPlan(job *Job) (jobSchedulerPlan *JobSchedulerPlan, err error) {
+	var (
+		expr *cronexpr.Expression
+	)
+
+	// 解析Job的cron表达式
+	if expr, err = cronexpr.Parse(job.CronExpr); err != nil {
+		return
+	}
+
+	// 生成 任务调度计划 对象
+	jobSchedulerPlan = &JobSchedulerPlan{
+		Job: job,
+		Expr: expr,
+		NextTime: expr.Next(time.Now()),
+	}
+
+	return
+}
