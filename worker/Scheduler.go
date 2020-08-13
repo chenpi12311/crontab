@@ -54,8 +54,31 @@ func (g *Scheduler) handleJobEvent(jobEvent *common.JobEvent) {
 
 // 处理任务执行结果
 func (g *Scheduler) handleJobResult(result *common.JobExecuteResult) {
+	var (
+		jobLog *common.JobLog
+	)
 	// 删除执行状态
 	delete(g.jobExecutingTable, result.ExecuteInfo.Job.Name)
+
+	// 生成执行日志
+	if result.Err != common.ERR_LOCK_ALREADY_REQUIRED {
+		jobLog = &common.JobLog{
+			JobName:      result.ExecuteInfo.Job.Name,
+			Command:      result.ExecuteInfo.Job.Command,
+			Output:       string(result.Output),
+			PlanTime:     result.ExecuteInfo.PlanTime.UnixNano() / 1000 / 1000,
+			ScheduleTime: result.ExecuteInfo.RealTime.UnixNano() / 1000 / 1000,
+			StartTime:    result.StartTime.UnixNano() / 1000 / 1000,
+			EndTime:      result.EndTime.UnixNano() / 1000 / 1000,
+		}
+		if result.Err != nil {
+			jobLog.Err = result.Err.Error()
+		} else {
+			jobLog.Err = ""
+		}
+
+		G_logSink.Append(jobLog)
+	}
 
 	fmt.Println("任务执行完成, 输出: ", string(result.Output), " 耗时: ", result.EndTime.Sub(result.StartTime))
 }

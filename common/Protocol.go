@@ -46,6 +46,23 @@ type JobExecuteResult struct {
 	EndTime time.Time
 }
 
+// JobLog 任务执行日志
+type JobLog struct {
+	JobName      string `bson: "jobName"`      // 任务名字
+	Command      string `bson: "command"`      // 任务命令
+	Err          string `bson: "err"`          // 错误原因
+	Output       string `bson: "output"`       // 脚本输出
+	PlanTime     int64  `bson: "planTime"`     // 计划开始时间
+	ScheduleTime int64  `bson: "scheduleTime"` // 实际调度时间
+	StartTime    int64  `bson: "startTime"`    // 任务开始执行之间
+	EndTime      int64  `bson: "endTime"`      // 任务结束时间
+}
+
+// LogBatch 日志批次
+type LogBatch struct {
+	Logs []interface{} // 多条日志
+}
+
 // Response HTTP接口应答
 type Response struct {
 	Errno int         `json:"errno"`

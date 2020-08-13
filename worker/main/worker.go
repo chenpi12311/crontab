@@ -1,11 +1,12 @@
 package main
 
 import (
-	"github.com/chenpi12311/crontab/worker"
 	"flag"
 	"fmt"
 	"runtime"
 	"time"
+
+	"github.com/chenpi12311/crontab/worker"
 )
 
 var (
@@ -38,6 +39,10 @@ func main() {
 
 	// 加载配置
 	if err = worker.InitConfig(confFile); err != nil {
+		goto ERR
+	}
+
+	if err = worker.InitLogSink(); err != nil {
 		goto ERR
 	}
 
