@@ -3,19 +3,20 @@ package worker
 import (
 	"fmt"
 	"time"
+
 	"github.com/chenpi12311/crontab/common"
 )
 
 // Scheduler 任务调度
 type Scheduler struct {
 	// etcd任务事件队列
-	jobEventChan chan*common.JobEvent
+	jobEventChan chan *common.JobEvent
 	// 任务调度计划表
 	jobPlanTable map[string]*common.JobSchedulerPlan
 	// 任务执行表
 	jobExecutingTable map[string]*common.JobExecuteInfo
 	// 任务执行结果队列
-	jobExecuteResultChan chan*common.JobExecuteResult
+	jobExecuteResultChan chan *common.JobExecuteResult
 }
 
 var (
@@ -25,9 +26,11 @@ var (
 // 处理任务事件
 func (g *Scheduler) handleJobEvent(jobEvent *common.JobEvent) {
 	var (
-		err error
-		jobSchedulerPlan *common.JobSchedulerPlan
-		jobExisted bool
+		err                 error
+		jobSchedulerPlan    *common.JobSchedulerPlan
+		jobExisted          bool
+		jobExecuteInfo      *common.JobExecuteInfo
+		jobExecutingExisted bool
 	)
 
 	switch jobEvent.EventType {
@@ -39,6 +42,12 @@ func (g *Scheduler) handleJobEvent(jobEvent *common.JobEvent) {
 	case common.JOB_EVENT_DEL: // 删除任务事件
 		if jobSchedulerPlan, jobExisted = g.jobPlanTable[jobEvent.Job.Name]; jobExisted {
 			delete(g.jobPlanTable, jobEvent.Job.Name)
+		}
+	case common.JOB_EVENT_KILL: // 强杀任务事件
+		// 取消掉Command任务, 判断任务是否在执行中
+		if jobExecuteInfo, jobExecutingExisted = g.jobExecutingTable[jobEvent.Job.Name]; jobExecutingExisted {
+			fmt.Println("强杀任务: ", jobEvent.Job.Name)
+			jobExecuteInfo.CancelFunc() // 触发command杀死shell子进程
 		}
 	}
 }
@@ -55,10 +64,10 @@ func (g *Scheduler) handleJobResult(result *common.JobExecuteResult) {
 func (g *Scheduler) TryStartJob(jobPlan *common.JobSchedulerPlan) {
 	var (
 		jobExecuteInfo *common.JobExecuteInfo
-		jobExecuting bool
+		jobExecuting   bool
 	)
 	// 调度和执行是两件事情
-	
+
 	// 执行的任务可能运行很久(比如1分钟调度60次，但是只能执行1次，防止并发)
 	// 如果任务正在执行 跳过本次调度
 	if jobExecuteInfo, jobExecuting = g.jobExecutingTable[jobPlan.Job.Name]; jobExecuting {
@@ -80,8 +89,8 @@ func (g *Scheduler) TryStartJob(jobPlan *common.JobSchedulerPlan) {
 // TryScheduler 重新计算任务调度状态
 func (g *Scheduler) TryScheduler() (schedulerAfter time.Duration) {
 	var (
-		jobPlan *common.JobSchedulerPlan
-		now time.Time
+		jobPlan  *common.JobSchedulerPlan
+		now      time.Time
 		nearTime *time.Time
 	)
 
@@ -118,10 +127,10 @@ func (g *Scheduler) TryScheduler() (schedulerAfter time.Duration) {
 // 调度协程
 func (g *Scheduler) scheduleLoop() {
 	var (
-		jobEvent *common.JobEvent
+		jobEvent       *common.JobEvent
 		schedulerAfter time.Duration
 		schedulerTimer *time.Timer
-		jobResult *common.JobExecuteResult
+		jobResult      *common.JobExecuteResult
 	)
 
 	// 初始化一次
@@ -156,10 +165,10 @@ func (g *Scheduler) PushJobEvent(jobEvent *common.JobEvent) {
 // InitScheduler 初始化调度器
 func InitScheduler() (err error) {
 	G_scheduler = &Scheduler{
-		jobEventChan: make(chan*common.JobEvent, 1000),
-		jobPlanTable: make(map[string]*common.JobSchedulerPlan),
-		jobExecutingTable: make(map[string]*common.JobExecuteInfo),
-		jobExecuteResultChan: make(chan*common.JobExecuteResult, 1000),
+		jobEventChan:         make(chan *common.JobEvent, 1000),
+		jobPlanTable:         make(map[string]*common.JobSchedulerPlan),
+		jobExecutingTable:    make(map[string]*common.JobExecuteInfo),
+		jobExecuteResultChan: make(chan *common.JobExecuteResult, 1000),
 	}
 
 	// 启动调度协程

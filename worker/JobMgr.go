@@ -1,19 +1,19 @@
 package worker
 
 import (
-	"github.com/coreos/etcd/clientv3"
-	"github.com/coreos/etcd/mvcc/mvccpb"
 	"context"
-	"github.com/chenpi12311/crontab/common"
 	"time"
 
+	"github.com/chenpi12311/crontab/common"
+	"github.com/coreos/etcd/clientv3"
+	"github.com/coreos/etcd/mvcc/mvccpb"
 )
 
 // JobMgr 任务管理器
 type JobMgr struct {
-	client *clientv3.Client
-	kv     clientv3.KV
-	lease  clientv3.Lease
+	client  *clientv3.Client
+	kv      clientv3.KV
+	lease   clientv3.Lease
 	watcher clientv3.Watcher
 }
 
@@ -22,22 +22,22 @@ var (
 	G_jobMgr *JobMgr
 )
 
-// 监听任务变化
-func (j *JobMgr) WatchJobs() (err error) {
+// WatchJobs 监听任务变化
+func (jobMgr *JobMgr) WatchJobs() (err error) {
 	var (
-		getResp *clientv3.GetResponse
-		kvPair *mvccpb.KeyValue
-		job *common.Job
+		getResp            *clientv3.GetResponse
+		kvPair             *mvccpb.KeyValue
+		job                *common.Job
 		watchStartRevision int64
-		watchChan clientv3.WatchChan
-		watchResp clientv3.WatchResponse
-		watchEvent *clientv3.Event
-		jobName string
-		jobEvent *common.JobEvent
+		watchChan          clientv3.WatchChan
+		watchResp          clientv3.WatchResponse
+		watchEvent         *clientv3.Event
+		jobName            string
+		jobEvent           *common.JobEvent
 	)
 
 	// 1. get /cron/jobs/目录下的所有任务 并且获知当前集群的revision
-	if getResp, err = j.kv.Get(context.TODO(), common.JOB_SAVE_DIR, clientv3.WithPrefix()); err != nil {
+	if getResp, err = jobMgr.kv.Get(context.TODO(), common.JOB_SAVE_DIR, clientv3.WithPrefix()); err != nil {
 		return
 	}
 
@@ -48,7 +48,7 @@ func (j *JobMgr) WatchJobs() (err error) {
 			// 把这个job同步给scheduler(调度协程)
 			jobEvent = &common.JobEvent{
 				EventType: common.JOB_EVENT_SAVE,
-				Job: job,
+				Job:       job,
 			}
 			G_scheduler.PushJobEvent(jobEvent)
 		}
@@ -59,7 +59,7 @@ func (j *JobMgr) WatchJobs() (err error) {
 		// 从GET时刻的后续版本开始监听变化
 		watchStartRevision = getResp.Header.Revision + 1
 		// 监听/cron/jobs/目录的后续变化
-		watchChan = j.watcher.Watch(context.TODO(), common.JOB_SAVE_DIR, clientv3.WithRev(watchStartRevision), clientv3.WithPrefix())
+		watchChan = jobMgr.watcher.Watch(context.TODO(), common.JOB_SAVE_DIR, clientv3.WithRev(watchStartRevision), clientv3.WithPrefix())
 		// 处理监听事件
 		for watchResp = range watchChan {
 			for _, watchEvent = range watchResp.Events {
@@ -89,13 +89,13 @@ func (j *JobMgr) WatchJobs() (err error) {
 	return
 }
 
-// 初始化管理器
+// InitJobMgr 初始化管理器
 func InitJobMgr() (err error) {
 	var (
-		config clientv3.Config
-		client *clientv3.Client
-		kv     clientv3.KV
-		lease  clientv3.Lease
+		config  clientv3.Config
+		client  *clientv3.Client
+		kv      clientv3.KV
+		lease   clientv3.Lease
 		watcher clientv3.Watcher
 	)
 
@@ -117,13 +117,17 @@ func InitJobMgr() (err error) {
 
 	// 赋值单例
 	G_jobMgr = &JobMgr{
-		client: client,
-		kv:     kv,
-		lease:  lease,
+		client:  client,
+		kv:      kv,
+		lease:   lease,
 		watcher: watcher,
 	}
 
+	// 监听任务
 	G_jobMgr.WatchJobs()
+
+	// 监听强杀
+	G_jobMgr.WatchKiller()
 
 	return
 }
@@ -131,5 +135,36 @@ func InitJobMgr() (err error) {
 // CreateJobLock 创建分布式锁
 func (jobMgr *JobMgr) CreateJobLock(jobName string) (jobLock *JobLock) {
 	jobLock = InitJobLock(jobName, jobMgr.kv, jobMgr.lease)
+	return
+}
+
+// WatchKiller 监听强杀任务
+func (jobMgr *JobMgr) WatchKiller() {
+	var (
+		watchChan  clientv3.WatchChan
+		watchResp  clientv3.WatchResponse
+		watchEvent *clientv3.Event
+		jobEvent   *common.JobEvent
+		jobName    string
+		job        *common.Job
+	)
+	go func() { // 监听协程
+		// 监听/cron/killer/目录的后续变化
+		watchChan = jobMgr.watcher.Watch(context.TODO(), common.JOB_KILLER_DIR, clientv3.WithPrefix())
+		// 处理监听事件
+		for watchResp = range watchChan {
+			for _, watchEvent = range watchResp.Events {
+				switch watchEvent.Type {
+				case mvccpb.PUT: // 杀死任务事件
+					jobName = common.ExtractKillerName(string(watchEvent.Kv.Key))
+					job = &common.Job{Name: jobName}
+					jobEvent = common.BuildJobEvent(common.JOB_EVENT_KILL, job)
+					G_scheduler.PushJobEvent(jobEvent)
+				case mvccpb.DELETE: // killer标记过期，被自动删除
+				}
+			}
+		}
+	}()
+
 	return
 }

@@ -108,7 +108,7 @@
         })
       });
       $("#job-list").on("click", ".kill-job", function() {
-        var jobName = $(this).parents("tr").children(".job-kill").text();
+        var jobName = $(this).parents("tr").children(".job-name").text();
         $.ajax({
           url: '/job/kill',
           type: 'post',

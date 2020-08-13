@@ -1,15 +1,14 @@
 package worker
 
 import (
-	"time"
-	"context"
 	"os/exec"
+	"time"
+
 	"github.com/chenpi12311/crontab/common"
 )
 
 // Executor 执行器
 type Executor struct {
-
 }
 
 var (
@@ -21,18 +20,18 @@ var (
 func (executor *Executor) ExecuteJob(info *common.JobExecuteInfo) {
 	go func() {
 		var (
-			cmd *exec.Cmd
-			err error
-			output []byte
-			result *common.JobExecuteResult
+			cmd       *exec.Cmd
+			err       error
+			output    []byte
+			result    *common.JobExecuteResult
 			startTime time.Time
-			endTime time.Time
-			jobLock *JobLock
+			endTime   time.Time
+			jobLock   *JobLock
 		)
 
 		result = &common.JobExecuteResult{
 			ExecuteInfo: info,
-			Output: make([]byte, 0),
+			Output:      make([]byte, 0),
 		}
 
 		// 初始化分布式锁
@@ -47,7 +46,7 @@ func (executor *Executor) ExecuteJob(info *common.JobExecuteInfo) {
 			result.EndTime = time.Now()
 		} else {
 			// 执行shell命令
-			cmd = exec.CommandContext(context.TODO(), "/bin/bash", "-c", info.Job.Command)
+			cmd = exec.CommandContext(info.CancelCtx, "/bin/bash", "-c", info.Job.Command)
 
 			startTime = time.Now()
 
@@ -71,9 +70,7 @@ func (executor *Executor) ExecuteJob(info *common.JobExecuteInfo) {
 // InitExecutor 初始化执行器
 func InitExecutor() (err error) {
 
-	G_executor = &Executor{
-
-	}
+	G_executor = &Executor{}
 
 	return
 }
